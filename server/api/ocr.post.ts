@@ -2,8 +2,9 @@ export default defineEventHandler(async (event) => {
   console.log('OCR API route called');
   try {
     const body = await readBody(event);
-    const { base64Image } = body;
+    const { base64Image, fileType } = body;
     console.log('Received base64Image, length:', base64Image ? base64Image.length : 0);
+    console.log('File type:', fileType);
 
     if (!base64Image) {
       throw createError({
@@ -15,13 +16,15 @@ export default defineEventHandler(async (event) => {
     const MODEL_ID = "allenai/olmocr-2-7b-1025";
     const LM_STUDIO_URL = "http://192.168.32.151:1234/v1";
 
+    const fileTypeText = fileType === 'pdf' ? 'PDF document' : 'image';
     const prompt = `
-Perform OCR and extract product order information from the image. 
+Perform OCR and extract product order information from the ${fileTypeText}. 
 
 CRITICAL INSTRUCTIONS:
 1. Clean the text and keep the original information 
 2. Output: Return ONLY a valid JSON object as follow:
         {
+            "title": "xxxx"   # Indicate this is document title, such as: Order, Quotation or other...
             "customer": {
                 "name": "xxx",
                 "phone": "xxxx",
@@ -48,7 +51,7 @@ CRITICAL INSTRUCTIONS:
             {
               type: 'image_url',
               image_url: {
-                url: `data:image/png;base64,${base64Image}`,
+                url: `data:${fileType === 'pdf' ? 'image/png' : 'image/png'};base64,${base64Image}`,
               },
             },
           ],

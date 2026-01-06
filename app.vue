@@ -7,12 +7,12 @@
       <form @submit.prevent>
         <div class="upload-controls">
           <label for="image-file" class="file-label">
-            <span class="file-label-text">Select Image File</span>
+            <span class="file-label-text">Select Image or PDF File</span>
             <input
               id="image-file"
               type="file"
               @change="handleFileSelect"
-              accept="image/*"
+              accept="image/*,.pdf"
               class="file-input"
             />
           </label>
@@ -33,12 +33,32 @@
 
     <!-- Content Section (Below) - Image Left, Result Right -->
     <div class="content-section">
-      <!-- Left: Image Preview -->
+      <!-- Left: Image/PDF Preview -->
       <div class="image-preview">
-        <h2>Image Preview</h2>
+        <h2>{{ isPdf ? 'PDF Preview' : 'Image Preview' }}</h2>
         <div class="image-container">
-          <img v-if="imageUrl" :src="imageUrl" alt="Selected Image" />
-          <div v-else class="placeholder">No image selected</div>
+          <img v-if="imageUrl && !isPdf" :src="imageUrl" alt="Selected Image" />
+          <div v-else-if="pdfPreviewUrl && isPdf" class="pdf-preview-container">
+            <img :src="pdfPreviewUrl" alt="PDF Preview" class="pdf-preview-image" />
+            <div v-if="pdfPageCount > 1" class="pdf-pagination">
+              <button 
+                @click="changePdfPage(-1)" 
+                :disabled="currentPdfPage <= 1"
+                class="pdf-nav-button"
+              >
+                Previous
+              </button>
+              <span class="pdf-page-info">Page {{ currentPdfPage }} of {{ pdfPageCount }}</span>
+              <button 
+                @click="changePdfPage(1)" 
+                :disabled="currentPdfPage >= pdfPageCount"
+                class="pdf-nav-button"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+          <div v-else class="placeholder">No file selected</div>
         </div>
       </div>
 
@@ -59,7 +79,7 @@
           </button>
         </div>
         <div v-else class="placeholder">
-          No result yet. Please select an image file and click "Recognize".
+          No result yet. Please select an image or PDF file and click "Recognize".
         </div>
       </div>
     </div>
@@ -69,14 +89,31 @@
 <script setup>
 import { ref } from 'vue';
 
+let pdfjsLib = null;
+
+// Lazy load PDF.js only on client side
+if (process.client) {
+  import('pdfjs-dist').then((module) => {
+    pdfjsLib = module;
+    // Configure PDF.js worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+  });
+}
+
 const imageUrl = ref(null);
 const ocrResult = ref('');
 const loading = ref(false);
 const selectedFileName = ref('');
 const selectedFile = ref(null);
 const base64Image = ref(null);
+const isPdf = ref(false);
+const fileType = ref(null);
+const pdfPreviewUrl = ref(null);
+const pdfDocument = ref(null);
+const currentPdfPage = ref(1);
+const pdfPageCount = ref(0);
 
-const encodeImage = (file) => {
+const encodeFile = (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -88,7 +125,95 @@ const encodeImage = (file) => {
   });
 };
 
-const performOcr = async (imageBase64) => {
+const loadPdfJs = async () => {
+  if (!process.client) return;
+  
+  if (!pdfjsLib) {
+    const module = await import('pdfjs-dist');
+    pdfjsLib = module;
+    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+    }
+  }
+  return pdfjsLib;
+};
+
+const renderPdfPage = async (pdf, pageNumber, scale = 2.0) => {
+  if (!process.client) return null;
+  
+  await loadPdfJs();
+  
+  try {
+    const page = await pdf.getPage(pageNumber);
+    const viewport = page.getViewport({ scale });
+    
+    // Create canvas
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+    
+    // Render PDF page to canvas
+    await page.render({
+      canvasContext: context,
+      viewport: viewport
+    }).promise;
+    
+    // Convert canvas to data URL
+    return canvas.toDataURL('image/png');
+  } catch (error) {
+    console.error('Error rendering PDF page:', error);
+    throw error;
+  }
+};
+
+const convertPdfToImage = async (file) => {
+  await loadPdfJs();
+  
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    
+    // Render first page and convert to base64 (without data URL prefix)
+    const dataUrl = await renderPdfPage(pdf, 1, 2.0);
+    return dataUrl.split(',')[1];
+  } catch (error) {
+    console.error('Error converting PDF to image:', error);
+    throw error;
+  }
+};
+
+const loadPdfForPreview = async (file) => {
+  await loadPdfJs();
+  
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    pdfDocument.value = pdf;
+    pdfPageCount.value = pdf.numPages;
+    currentPdfPage.value = 1;
+    
+    // Render first page for preview
+    const previewUrl = await renderPdfPage(pdf, 1, 1.5);
+    pdfPreviewUrl.value = previewUrl;
+  } catch (error) {
+    console.error('Error loading PDF for preview:', error);
+    throw error;
+  }
+};
+
+const changePdfPage = async (direction) => {
+  if (!pdfDocument.value) return;
+  
+  const newPage = currentPdfPage.value + direction;
+  if (newPage < 1 || newPage > pdfPageCount.value) return;
+  
+  currentPdfPage.value = newPage;
+  const previewUrl = await renderPdfPage(pdfDocument.value, newPage, 1.5);
+  pdfPreviewUrl.value = previewUrl;
+};
+
+const performOcr = async (fileBase64, fileType) => {
   loading.value = true;
   ocrResult.value = '';
 
@@ -97,7 +222,8 @@ const performOcr = async (imageBase64) => {
     const response = await $fetch('/api/ocr', {
       method: 'POST',
       body: {
-        base64Image: imageBase64
+        base64Image: fileBase64,
+        fileType: fileType
       }
     });
 
@@ -136,7 +262,7 @@ const handleRecognize = async () => {
   if (!base64Image.value) {
     return;
   }
-  await performOcr(base64Image.value);
+  await performOcr(base64Image.value, fileType.value);
 };
 
 const handleImport = () => {
@@ -153,20 +279,37 @@ const handleFileSelect = async (event) => {
   selectedFile.value = file;
   selectedFileName.value = file.name;
   
-  // Create object URL for preview
+  // Determine file type
+  isPdf.value = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  fileType.value = isPdf.value ? 'pdf' : file.type.split('/')[0]; // 'pdf' or 'image'
+  
+  // Clean up previous previews
   if (imageUrl.value) {
     URL.revokeObjectURL(imageUrl.value);
+    imageUrl.value = null;
   }
-  imageUrl.value = URL.createObjectURL(file);
-
+  pdfPreviewUrl.value = null;
+  pdfDocument.value = null;
+  
   // Reset OCR result when new file is selected
   ocrResult.value = '';
 
   try {
-    // Encode image to base64 but don't perform OCR yet
-    base64Image.value = await encodeImage(file);
+    if (isPdf.value) {
+      // Load PDF for preview and convert first page to image for OCR
+      await Promise.all([
+        loadPdfForPreview(file),
+        convertPdfToImage(file).then(base64 => {
+          base64Image.value = base64;
+        })
+      ]);
+    } else {
+      // For images, create object URL for img tag and encode to base64
+      imageUrl.value = URL.createObjectURL(file);
+      base64Image.value = await encodeFile(file);
+    }
   } catch (error) {
-    console.error('Error encoding image:', error);
+    console.error('Error processing file:', error);
     ocrResult.value = `Error: ${error.message}`;
   }
 };
@@ -290,6 +433,58 @@ h1 {
   max-height: 600px;
   object-fit: contain;
   display: block;
+}
+
+.pdf-preview-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pdf-preview-image {
+  max-width: 100%;
+  max-height: 550px;
+  object-fit: contain;
+  display: block;
+  background-color: #fafafa;
+  border-radius: 4px;
+}
+
+.pdf-pagination {
+  margin-top: 15px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 10px;
+}
+
+.pdf-page-info {
+  color: #555;
+  font-size: 0.9rem;
+  min-width: 120px;
+  text-align: center;
+}
+
+.pdf-nav-button {
+  padding: 8px 16px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.pdf-nav-button:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+
+.pdf-nav-button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .placeholder {
