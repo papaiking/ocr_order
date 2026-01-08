@@ -24,6 +24,14 @@
           >
             Recognize
           </button>
+          <button 
+            type="button" 
+            @click="handleCounting" 
+            :disabled="!selectedFile || loading"
+            class="counting-button"
+          >
+            Counting
+          </button>
         </div>
         <div v-if="selectedFileName" class="file-name">
           Selected: {{ selectedFileName }}
@@ -213,6 +221,44 @@ const changePdfPage = async (direction) => {
   pdfPreviewUrl.value = previewUrl;
 };
 
+const performCounting = async (fileBase64, fileType) => {
+  loading.value = true;
+  ocrResult.value = '';
+
+  try {
+    // Call our Nuxt server API route for counting
+    const response = await $fetch('/api/counting', {
+      method: 'POST',
+      body: {
+        base64Image: fileBase64,
+        fileType: fileType
+      }
+    });
+
+    console.log('API Response:', response);
+
+    if (response && response.choices && response.choices.length > 0) {
+      const content = response.choices[0].message.content;
+      try {
+        const jsonMatch = content.match(/```(?:json)?\n?([\s\S]*?)\n?```/);
+        const jsonString = jsonMatch ? jsonMatch[1] : content;
+        const parsed = JSON.parse(jsonString);
+        ocrResult.value = JSON.stringify(parsed, null, 2);
+      } catch (parseError) {
+        ocrResult.value = content;
+      }
+    } else {
+      console.warn('Unexpected response structure:', response);
+      ocrResult.value = `No content received from API. Response: ${JSON.stringify(response)}`;
+    }
+  } catch (error) {
+    console.error('Error performing counting:', error);
+    ocrResult.value = `Error: ${error.data?.message || error.message || 'Unknown error'}`;
+  } finally {
+    loading.value = false;
+  }
+};
+
 const performOcr = async (fileBase64, fileType) => {
   loading.value = true;
   ocrResult.value = '';
@@ -263,6 +309,13 @@ const handleRecognize = async () => {
     return;
   }
   await performOcr(base64Image.value, fileType.value);
+};
+
+const handleCounting = async () => {
+  if (!base64Image.value) {
+    return;
+  }
+  await performCounting(base64Image.value, fileType.value);
 };
 
 const handleImport = () => {
@@ -386,6 +439,28 @@ h1 {
 }
 
 .recognize-button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.counting-button {
+  padding: 12px 24px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.counting-button:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+
+.counting-button:disabled {
   background-color: #6c757d;
   cursor: not-allowed;
   opacity: 0.6;

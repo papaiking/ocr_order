@@ -1,5 +1,5 @@
 export default defineEventHandler(async (event) => {
-  console.log('OCR API route called');
+  console.log('Counting things API route called');
   try {
     const body = await readBody(event);
     const { base64Image, fileType } = body;
@@ -14,31 +14,25 @@ export default defineEventHandler(async (event) => {
     }
 
     // const MODEL_ID = "allenai/olmocr-2-7b-1025";
-    const MODEL_ID = "qwen/qwen3-vl-8b";
-    const LM_STUDIO_URL = "http://192.168.32.151:1234/v1";
-    // const MODEL_ID = "Qwen/Qwen3-VL-8B-Instruct-FP8";
-    // const LM_STUDIO_URL = "http://10.148.0.20:8000/v1";
+    // const MODEL_ID = "qwen/qwen3-vl-8b";
+    // const LM_STUDIO_URL = "http://192.168.32.151:1234/v1";
+    const MODEL_ID = "Qwen/Qwen3-VL-8B-Instruct-FP8";
+    const LM_STUDIO_URL = "http://10.148.0.20:8000/v1";
 
     const fileTypeText = fileType === 'pdf' ? 'PDF document' : 'image';
     const prompt = `
-Perform OCR and extract product order information from the ${fileTypeText}. 
+Your are expert in store inventory, let help me analyse and couting things from the file image. 
 
 CRITICAL INSTRUCTIONS:
-1. Clean the text and keep the original information 
-2. Output: Return ONLY a valid JSON object as follow:
+1. Specyfy objects (Plastic kitchenware) in Vietnamese language with object name, color and size, the counting number of each object in image
+2. Just counting for objects that are clear, visible and countantable
+3. If same kind of objects but different size and color, they are considered different objects
+4. Output: Return ONLY a valid JSON object as follow:
         {
-            "title": "xxxx"   # Indicate this is document title, such as: Order, Quotation or other...
-            "customer": {
-                "name": "xxx",
-                "phone": "xxxx",
-                "addess": "xxxxx",
-                "payment_method": "xxx"
-            },
             "products": [
                 {
                     "name": "xxxxx",
                     "quantity": xxxxx, 
-                    "price": xxxxx
                 }
             ]
         }
