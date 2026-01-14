@@ -318,9 +318,41 @@ const handleCounting = async () => {
   await performCounting(base64Image.value, fileType.value);
 };
 
-const handleImport = () => {
-  // Do nothing for now
-  console.log('Import button clicked');
+const handleImport = async () => {
+  if (!ocrResult.value) {
+    alert('No content to import.');
+    return;
+  }
+
+  let jsonData;
+  try {
+    jsonData = JSON.parse(ocrResult.value);
+  } catch (error) {
+    alert('The recognized content is not valid JSON.');
+    console.error('Error parsing JSON:', error);
+    return;
+  }
+
+  const url = 'https://wf.gnixy.com/webhook/3d4ac05a-05b7-44c7-9253-14301f1956f7';
+  const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IlRodWMgVnUiLCJhZG1pbiI6dHJ1ZSwiaWF0IjoxNTE2MjM5MDIyfQ.CoUOrOtmunXGMG8u59CK6pIN1UurOrVsapGhaPaJrJ4';
+
+  try {
+    // loading.value = true;
+    await $fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: jsonData
+    });
+    alert('Import successful!');
+  } catch (error) {
+    console.error('Error importing data:', error);
+    alert(`Error importing data: ${error.data?.message || error.message || 'Unknown error'}`);
+  } finally {
+    loading.value = false;
+  }
 };
 
 const handleFileSelect = async (event) => {

@@ -21,21 +21,29 @@ export default defineEventHandler(async (event) => {
 
     const fileTypeText = fileType === 'pdf' ? 'PDF document' : 'image';
     const prompt = `
-Your are expert in store inventory, let help me analyse and couting things from the file image. 
+Role: You are a Professional Inventory Audit Specialist expert in retail warehouse management. Your task is to perform a visual stock-take of plastic household products from the provided image.
 
-CRITICAL INSTRUCTIONS:
-1. Specyfy objects (Plastic kitchenware) in Vietnamese language with object name, color and size, the counting number of each object in image
-2. Just counting for objects that are clear, visible and countantable
-3. If same kind of objects but different size and color, they are considered different objects
-4. Output: Return ONLY a valid JSON object as follow:
-        {
-            "products": [
-                {
-                    "name": "xxxxx",
-                    "quantity": xxxxx, 
-                }
-            ]
-        }
+Task Objectives:
+1. Identify: Detect every distinct plastic household product visible in the image.
+2. Classify: Describe each item in Vietnamese. You must distinguish items by Product Name, Color, and Size (if size is visually estimable or labeled).
+3. Count: Provide an accurate tally for each unique variation.
+
+Strict Counting Rules:
+1. Unique SKU Logic: If two items are the same type but differ in color or size, they must be listed as separate entries.
+2. Visibility Filter: Only count objects that are clearly visible and can be identified with high confidence. Do not guess for blurred or heavily obscured items.
+3. Vietnamese Naming: Use standard commercial Vietnamese terms (e.g., "Rổ nhựa", "Chậu thau", "Hộp thực phẩm").
+4. If there is a red boundary in the image, locate the red boundary within the image and you must ONLY count and analyze objects located entirely or mostly inside this red boundary. If there is not any boundary, counting in entire image.
+
+Output Format: Return ONLY a valid JSON object. Do not include any conversational text, markdown headers, or explanations. Use the following structure:
+JSON
+{
+  "products": [
+    {
+      "name": "[Name] - [Color] - [Size/Description]",
+      "quantity": 0
+    }
+  ]
+}
         `;
 
     const requestBody = {

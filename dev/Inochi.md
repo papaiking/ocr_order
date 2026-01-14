@@ -14,3 +14,12 @@ This is an requirement from customer to make AI app to assist them in managing r
     Ensure Data Accuracy: Mitigate input errors, ensure data consistency, and enable real-time synchronization across retail and e-commerce platforms.
     ```
 Based on documents provided with an image demo on order recognition, make an proposal to customer.
+
+
+# Import button
+In the page, the "Recognized Content" part, after clicking to "Impoort" button, let send the JSON value to following URL:
+
+URL: https://wf.gnixy.com/webhook/3d4ac05a-05b7-44c7-9253-14301f1956f7
+Method: POST
+Data format: JSON
+header Authentication token: 

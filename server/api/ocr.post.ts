@@ -15,9 +15,13 @@ export default defineEventHandler(async (event) => {
 
     // const MODEL_ID = "allenai/olmocr-2-7b-1025";
     const MODEL_ID = "qwen/qwen3-vl-8b";
-    const LM_STUDIO_URL = "http://192.168.32.151:1234/v1";
+    const LM_STUDIO_URL = "http://192.168.32.49:1234/v1";
+
     // const MODEL_ID = "Qwen/Qwen3-VL-8B-Instruct-FP8";
     // const LM_STUDIO_URL = "http://10.148.0.20:8000/v1";
+
+    // const MODEL_ID = "deepseek-ocr";
+    // const LM_STUDIO_URL = "http://192.168.32.49:1234/v1";
 
     const fileTypeText = fileType === 'pdf' ? 'PDF document' : 'image';
     const prompt = `
